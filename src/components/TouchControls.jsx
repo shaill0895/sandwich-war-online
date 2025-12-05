@@ -22,9 +22,14 @@ export function TouchControls({ onInput }) {
     return (
         <div style={{
             position: 'absolute', top: 0, left: 0, width: '100%', height: '100%',
-            pointerEvents: 'none', // Let clicks pass through to canvas if needed, but controls need pointer events
+            pointerEvents: 'none',
             display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end',
-            padding: '20px', boxSizing: 'border-box', zIndex: 10
+            padding: '20px',
+            paddingTop: 'max(20px, env(safe-area-inset-top))',
+            paddingBottom: 'max(20px, env(safe-area-inset-bottom))',
+            paddingLeft: 'max(20px, env(safe-area-inset-left))',
+            paddingRight: 'max(20px, env(safe-area-inset-right))',
+            boxSizing: 'border-box', zIndex: 10
         }}>
             {/* Joystick Area */}
             <div style={{ pointerEvents: 'auto', opacity: 0.7 }}>

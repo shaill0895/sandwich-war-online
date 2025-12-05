@@ -1,9 +1,11 @@
 import { CONFIG, COLORS, CHARACTERS } from './constants';
 import { Player, Obstacle } from './entities';
 import { checkRectCollide } from './utils';
+import { loadGameAssets, sprites } from './SpriteManager';
 
 export class GameEngine {
     constructor() {
+        loadGameAssets();
         this.p1 = new Player(1, "AUSTIN", COLORS.blue, 100, true);
         this.p2 = new Player(2, "BRADY", COLORS.red, CONFIG.arenaWidth - 150, false);
 
@@ -500,9 +502,18 @@ export class GameEngine {
         });
 
         this.particles.forEach(p => {
+            ctx.save();
+            ctx.globalCompositeOperation = 'lighter'; // Glow effect
             ctx.fillStyle = p.color;
-            if (p.isTrail) ctx.fillRect(p.x, p.y, p.width, p.height);
-            else ctx.fillRect(p.x, p.y, 5, 5);
+            ctx.beginPath();
+            if (p.isTrail) {
+                ctx.globalAlpha = 0.5;
+                ctx.rect(p.x, p.y, p.width, p.height);
+            } else {
+                ctx.arc(p.x, p.y, 3 + Math.random() * 2, 0, Math.PI * 2);
+            }
+            ctx.fill();
+            ctx.restore();
         });
 
         this.projectiles.forEach(p => {
@@ -526,6 +537,7 @@ export class GameEngine {
         ctx.restore();
     }
 
+
     drawPlayer(ctx, p) {
         ctx.save();
         // Dynamic Shadow (based on Z)
@@ -538,22 +550,40 @@ export class GameEngine {
         // Apply Z-offset for body
         const drawY = p.y - p.z;
 
-        // Body
-        ctx.fillStyle = p.baseColor;
-        ctx.fillRect(p.x, drawY, p.width, p.height);
+        // Sprite Rendering
+        let spriteName = 'austin'; // Default
+        if (p.charType === 'pigeon') spriteName = 'brady';
 
-        if (p.isDashing) {
-            ctx.strokeStyle = 'white'; ctx.lineWidth = 2;
-            ctx.strokeRect(p.x, drawY, p.width, p.height);
+        const img = sprites.get(spriteName);
+        if (img && img.complete) {
+            // Draw Sprite
+            // Flip if facing left (Austin starts left, Brady starts right usually)
+            // But we have "isLeft" property on Player? No, but we can check direction or ID.
+            // ID 1 (Austin) usually faces right, ID 2 (Brady) faces left.
+            // Let's assume standard sprites face RIGHT.
+
+            ctx.drawImage(img, p.x - 20, drawY - 20, p.width + 40, p.height + 40); // Draw slightly larger than hit box
+
+            if (p.isDashing) {
+                ctx.globalCompositeOperation = 'add';
+                ctx.globalAlpha = 0.5;
+                ctx.drawImage(img, p.x - 20, drawY - 20, p.width + 40, p.height + 40);
+                ctx.globalAlpha = 1.0;
+                ctx.globalCompositeOperation = 'source-over';
+            }
+        } else {
+            // Fallback Rect
+            ctx.fillStyle = p.baseColor;
+            ctx.fillRect(p.x, drawY, p.width, p.height);
+            // ... (Head etc)
+            ctx.fillStyle = '#f1c27d';
+            ctx.fillRect(p.x + 10, drawY - 15, 30, 20);
         }
+
         if (p.shield > 0) {
             ctx.strokeStyle = COLORS.shield; ctx.lineWidth = 3;
             ctx.strokeRect(p.x - 5, drawY - 5, p.width + 10, p.height + 10);
         }
-
-        // Head
-        ctx.fillStyle = '#f1c27d';
-        ctx.fillRect(p.x + 10, drawY - 15, 30, 20);
 
         // Stamina Bar (Small, under player)
         ctx.fillStyle = '#333';
@@ -576,10 +606,15 @@ export class GameEngine {
         ctx.fillStyle = 'rgba(0,0,0,0.3)';
         ctx.beginPath(); ctx.ellipse(b.x + b.width / 2, b.y + b.height - 5, 20, 8, 0, 0, Math.PI * 2); ctx.fill();
 
-        ctx.fillStyle = 'white'; ctx.fillRect(b.x, b.y, b.width, b.height);
-        ctx.fillStyle = 'black';
-        for (let i = 0; i < b.height; i += 12) ctx.fillRect(b.x, b.y + i, b.width, 6);
-        ctx.fillStyle = '#f1c27d'; ctx.fillRect(b.x + 10, b.y - 15, 30, 20);
+        const img = sprites.get('bryce');
+        if (img && img.complete) {
+            ctx.drawImage(img, b.x - 10, b.y - 10, b.width + 20, b.height + 20);
+        } else {
+            ctx.fillStyle = 'white'; ctx.fillRect(b.x, b.y, b.width, b.height);
+            ctx.fillStyle = 'black';
+            for (let i = 0; i < b.height; i += 12) ctx.fillRect(b.x, b.y + i, b.width, 6);
+            ctx.fillStyle = '#f1c27d'; ctx.fillRect(b.x + 10, b.y - 15, 30, 20);
+        }
 
         if (b.msgTimer > 0) {
             ctx.textAlign = 'center'; ctx.fillStyle = 'white'; ctx.strokeStyle = 'black'; ctx.lineWidth = 2;

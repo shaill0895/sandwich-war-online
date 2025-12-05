@@ -70,12 +70,18 @@ export function GameCanvas({ roomId, playerId, onLeave }) {
         channelRef.current = channel;
 
         // --- Resize ---
+        // --- Resize ---
         const resize = () => {
-            // Resize canvas to window, but game rendering handles resolution via camera
-            canvas.width = window.innerWidth;
-            canvas.height = window.innerHeight;
+            const dpr = window.devicePixelRatio || 1;
+            // Resize canvas to physical pixels
+            canvas.width = window.innerWidth * dpr;
+            canvas.height = window.innerHeight * dpr;
+            // Style stays in CSS pixels
             canvas.style.width = '100vw';
             canvas.style.height = '100vh';
+
+            // Normalize context to CSS pixels
+            ctx.scale(dpr, dpr);
         };
         window.addEventListener('resize', resize);
         resize();

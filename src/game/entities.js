@@ -49,14 +49,31 @@ export class Player extends Entity {
         this.isLeft = isLeft;
         this.baseColor = color;
 
-        // Stats
-        this.level = 1;
-        this.xp = 0;
-        this.maxXp = 100;
+        // Character Assignment
+        if (name === "AUSTIN") {
+            this.charType = 'chef';
+        } else if (name === "BRADY") {
+            this.charType = 'pigeon';
+        } else {
+            this.charType = 'toaster';
+        }
+
+        // Stats based on character
         this.maxHp = 100;
-        this.hp = 100;
-        this.damage = 15;
         this.speedMult = 1.0;
+
+        if (this.charType === 'chef') {
+            this.maxHp = 100;
+            this.speedMult = 1.0;
+        } else if (this.charType === 'pigeon') {
+            this.maxHp = 80;
+            this.speedMult = 1.15; // Faster
+        } else {
+            this.maxHp = 120; // Tank
+            this.speedMult = 0.9;
+        }
+        this.hp = this.maxHp;
+        this.damage = 15;
 
         // Combat
         this.cooldown = 0;
