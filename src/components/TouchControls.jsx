@@ -39,52 +39,62 @@ export function TouchControls({ onInput }) {
             </div>
 
             {/* Action Buttons */}
-            <div style={{ pointerEvents: 'auto', display: 'flex', gap: '20px', paddingBottom: '20px' }}>
-                <button
-                    onTouchStart={() => onInput({ fire: true })}
-                    onTouchEnd={() => onInput({ fire: false })}
-                    onMouseDown={() => onInput({ fire: true })}
-                    onMouseUp={() => onInput({ fire: false })}
-                    style={btnStyle('#FF4500')}
-                >
-                    F
-                </button>
-                <button
-                    onTouchStart={() => onInput({ dash: true })}
-                    onTouchEnd={() => onInput({ dash: false })}
-                    onMouseDown={() => onInput({ dash: true })}
-                    onMouseUp={() => onInput({ dash: false })}
-                    style={btnStyle('#FFFF00')}
-                >
-                    D
-                </button>
-                <button
-                    onTouchStart={() => onInput({ jump: true })}
-                    onTouchEnd={() => onInput({ jump: false })}
-                    onMouseDown={() => onInput({ jump: true })}
-                    onMouseUp={() => onInput({ jump: false })}
-                    style={btnStyle('#00BFFF')}
-                >
-                    J
-                </button>
-                <button
-                    onTouchStart={() => onInput({ ult: true })}
-                    onTouchEnd={() => onInput({ ult: false })}
-                    onMouseDown={() => onInput({ ult: true })}
-                    onMouseUp={() => onInput({ ult: false })}
-                    style={btnStyle('#FF00FF')}
-                >
-                    U
-                </button>
+            <div style={{ pointerEvents: 'auto', display: 'flex', gap: '15px', paddingBottom: '30px', paddingRight: '10px' }}>
+                <div style={colStyle}>
+                    <button
+                        onTouchStart={() => onInput({ fire: true })}
+                        onTouchEnd={() => onInput({ fire: false })}
+                        onMouseDown={() => onInput({ fire: true })}
+                        onMouseUp={() => onInput({ fire: false })}
+                        style={btnStyle('#FF4500', 'FIRE')}
+                    >
+                        F
+                    </button>
+                    <button
+                        onTouchStart={() => onInput({ jump: true })}
+                        onTouchEnd={() => onInput({ jump: false })}
+                        onMouseDown={() => onInput({ jump: true })}
+                        onMouseUp={() => onInput({ jump: false })}
+                        style={{ ...btnStyle('#00BFFF', 'JUMP'), marginTop: '10px' }}
+                    >
+                        J
+                    </button>
+                </div>
+
+                <div style={colStyle}>
+                    <button
+                        onTouchStart={() => onInput({ dash: true })}
+                        onTouchEnd={() => onInput({ dash: false })}
+                        onMouseDown={() => onInput({ dash: true })}
+                        onMouseUp={() => onInput({ dash: false })}
+                        style={btnStyle('#FFFF00', 'DASH')}
+                    >
+                        D
+                    </button>
+                    <button
+                        onTouchStart={() => onInput({ ult: true })}
+                        onTouchEnd={() => onInput({ ult: false })}
+                        onMouseDown={() => onInput({ ult: true })}
+                        onMouseUp={() => onInput({ ult: false })}
+                        style={{ ...btnStyle('#FF00FF', 'ULT'), marginTop: '10px' }}
+                    >
+                        U
+                    </button>
+                </div>
             </div>
         </div>
     );
 }
 
+const colStyle = {
+    display: 'flex', flexDirection: 'column', alignItems: 'center'
+};
+
 const btnStyle = (color) => ({
-    width: '60px', height: '60px', borderRadius: '50%',
-    background: color, border: '2px solid white',
-    color: 'white', fontWeight: 'bold', fontSize: '20px',
+    width: '75px', height: '75px', borderRadius: '50%',
+    background: color, border: '3px solid rgba(255,255,255,0.8)',
+    color: 'white', fontWeight: 'bold', fontSize: '24px',
     display: 'flex', justifyContent: 'center', alignItems: 'center',
-    userSelect: 'none', touchAction: 'none'
+    userSelect: 'none', touchAction: 'none',
+    boxShadow: '0 4px 10px rgba(0,0,0,0.5)', opacity: 0.8
 });

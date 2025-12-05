@@ -18,7 +18,7 @@ export class GameEngine {
         this.shakeIntensity = 0;
 
         // Camera
-        this.camera = { x: 0, y: 0 };
+        this.camera = { x: CONFIG.arenaWidth / 2, y: CONFIG.arenaHeight / 2, zoom: 1 };
 
         // Bryce (The Referee/Announcer)
         this.bryce = {
@@ -167,19 +167,34 @@ export class GameEngine {
         if (this.shakeIntensity > 0) this.shakeIntensity *= 0.9;
         if (this.shakeIntensity < 0.5) this.shakeIntensity = 0;
 
-        // Camera Update (Centroid of players)
-        const midX = (this.p1.x + this.p2.x) / 2;
-        const midY = (this.p1.y + this.p2.y) / 2;
+        // Camera Update (Dynamic Zoom & Fit)
+        const midX = (this.p1.x + this.p2.x + this.p1.width / 2 + this.p2.width / 2) / 2;
+        const midY = (this.p1.y + this.p2.y + this.p1.height / 2 + this.p2.height / 2) / 2;
 
-        const targetCamX = midX - window.innerWidth / 2;
-        const targetCamY = midY - window.innerHeight / 2;
+        const distX = Math.abs(this.p1.x - this.p2.x) + 400; // +Padding
+        const distY = Math.abs(this.p1.y - this.p2.y) + 400;
 
-        this.camera.x += (targetCamX - this.camera.x) * CONFIG.cameraSmooth;
-        this.camera.y += (targetCamY - this.camera.y) * CONFIG.cameraSmooth;
+        // Calculate Target Zoom
+        const zoomX = window.innerWidth / distX;
+        const zoomY = window.innerHeight / distY;
+        let targetZoom = Math.min(zoomX, zoomY);
 
-        // Clamp Camera
-        this.camera.x = Math.max(0, Math.min(this.camera.x, CONFIG.arenaWidth - window.innerWidth));
-        this.camera.y = Math.max(0, Math.min(this.camera.y, CONFIG.arenaHeight - window.innerHeight));
+        // Clamp Zoom
+        targetZoom = Math.max(CONFIG.minZoom, Math.min(targetZoom, CONFIG.maxZoom));
+
+        // Smooth Zoom
+        this.camera.zoom += (targetZoom - this.camera.zoom) * CONFIG.zoomSmooth;
+
+        // Smooth Target
+        this.camera.x += (midX - this.camera.x) * CONFIG.cameraSmooth;
+        this.camera.y += (midY - this.camera.y) * CONFIG.cameraSmooth;
+
+        // Clamp Camera Center to stay within arena bounds (considering zoom)
+        const viewW = window.innerWidth / this.camera.zoom;
+        const viewH = window.innerHeight / this.camera.zoom;
+
+        this.camera.x = Math.max(viewW / 2, Math.min(this.camera.x, CONFIG.arenaWidth - viewW / 2));
+        this.camera.y = Math.max(viewH / 2, Math.min(this.camera.y, CONFIG.arenaHeight - viewH / 2));
 
 
         // Event: Food Rain
@@ -223,7 +238,7 @@ export class GameEngine {
         }
 
         if (b.actionTimer <= 0) {
-            b.actionTimer = 8 + Math.random() * 10; // Less often
+            b.actionTimer = 12 + Math.random() * 15; // Less often (12-27s)
             if (Math.random() > 0.4) {
                 this.spawnPowerup();
                 // Random Event Chance
@@ -326,9 +341,9 @@ export class GameEngine {
             }
 
             if (target && checkRectCollide(p, target)) {
-                // Check if target is jumping high enough to avoid ground projectiles?
-                // Assuming projectiles are low flying, z < 30. If target.z > 30, miss?
-                if (target.z < 40) {
+                // 2.5D Hit Check: Projectile must be within Z range of target
+                const projZ = p.z || 0;
+                if (Math.abs(projZ - target.z) < 60) {
                     if (!target.isDashing) {
                         if (target.shield > 0) {
                             target.shield--;
@@ -450,8 +465,10 @@ export class GameEngine {
 
     draw(ctx) {
         ctx.save();
-        // Camera Transform
-        ctx.translate(-Math.floor(this.camera.x), -Math.floor(this.camera.y));
+        // Camera Transform (Center Scaling)
+        ctx.translate(window.innerWidth / 2, window.innerHeight / 2);
+        ctx.scale(this.camera.zoom, this.camera.zoom);
+        ctx.translate(-this.camera.x, -this.camera.y);
 
         ctx.fillStyle = '#222';
         ctx.fillRect(0, 0, CONFIG.arenaWidth, CONFIG.arenaHeight);
@@ -512,7 +529,7 @@ export class GameEngine {
     drawPlayer(ctx, p) {
         ctx.save();
         // Dynamic Shadow (based on Z)
-        const shadowScale = 1 - Math.min(p.z / 400, 0.5);
+        const shadowScale = Math.max(0.2, 1 - p.z / 250);
         ctx.fillStyle = 'rgba(0,0,0,0.3)';
         ctx.beginPath();
         ctx.ellipse(p.x + p.width / 2, p.y + p.height - 5, 20 * shadowScale, 8 * shadowScale, 0, 0, Math.PI * 2);

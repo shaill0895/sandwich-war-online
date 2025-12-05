@@ -7,7 +7,10 @@ export const CONFIG = {
     fireRate: 0.25,
     gravity: 2500,
     jumpStrength: 900,
-    cameraSmooth: 0.1
+    cameraSmooth: 0.1,
+    minZoom: 0.4,
+    maxZoom: 1.2,
+    zoomSmooth: 0.1
 };
 
 export const COLORS = {
