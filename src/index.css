@@ -1,0 +1,26 @@
+:root {
+  --bg-color: #121212;
+  --text-color: #ffffff;
+  --accent-color: #ff9f1c;
+  --secondary-color: #2ec4b6;
+  --danger-color: #e71d36;
+
+  --card-bg: rgba(255, 255, 255, 0.05);
+  --card-border: 1px solid rgba(255, 255, 255, 0.1);
+
+  --font-main: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  background-color: var(--bg-color);
+  color: var(--text-color);
+  font-family: var(--font-main);
+  overflow: hidden;
+  background: radial-gradient(circle at center, #1a1a1a 0%, #000000 100%);
+}
+
+button {
+  font-family: var(--font-main);
+}
