@@ -3,6 +3,7 @@ import { GameEngine } from '../game/GameEngine';
 import { CONFIG } from '../game/constants';
 import { supabase } from '../lib/supabase';
 import { TouchControls } from './TouchControls';
+import { Chat } from './Chat';
 
 export function GameCanvas({ roomId, playerId, onLeave }) {
     const canvasRef = useRef(null);
@@ -41,14 +42,39 @@ export function GameCanvas({ roomId, playerId, onLeave }) {
                 const users = Object.keys(state).sort(); // Deterministic order
                 const myIndex = users.indexOf(playerId);
 
+                // Collect characters
+                const playerChars = {};
+                users.forEach((uid, idx) => {
+                    // state[uid] is array of presence objects (one per device/tab)
+                    const pres = state[uid][0];
+                    playerChars[`p${idx + 1}`] = pres.char || 'austin';
+                });
+
+                // Update Engine if Host
+                if (isHost.current && engineRef.current) {
+                    engineRef.current.updateRoster(playerChars);
+                }
+
                 if (myIndex === 0) {
                     isHost.current = true;
                     myRole.current = 1;
-                    setStatus('YOU ARE P1 (HOST)');
-                } else {
+                    setStatus(`HOST (P1) as ${playerChars.p1?.toUpperCase()}`);
+                } else if (myIndex === 1) {
                     isHost.current = false;
                     myRole.current = 2;
-                    setStatus('YOU ARE P2 (CLIENT)');
+                    setStatus(`CLIENT (P2) as ${playerChars.p2?.toUpperCase()}`);
+                } else if (myIndex === 2) {
+                    isHost.current = false;
+                    myRole.current = 3;
+                    setStatus(`CLIENT (P3) as ${playerChars.p3?.toUpperCase()}`);
+                } else if (myIndex === 3) {
+                    isHost.current = false;
+                    myRole.current = 4;
+                    setStatus(`CLIENT (P4) as ${playerChars.p4?.toUpperCase()}`);
+                } else {
+                    isHost.current = false;
+                    myRole.current = -1; // Spectator?
+                    setStatus('SPECTATOR (LOBBY FULL)');
                 }
             })
             .on('broadcast', { event: 'gameState' }, ({ payload }) => {
@@ -58,18 +84,22 @@ export function GameCanvas({ roomId, playerId, onLeave }) {
             })
             .on('broadcast', { event: 'input' }, ({ payload }) => {
                 if (isHost.current) {
-                    remoteInputs.current = payload;
+                    // payload is { role: number, input: object }
+                    if (!remoteInputs.current) remoteInputs.current = {};
+                    remoteInputs.current[`p${payload.role}`] = payload.input;
                 }
             })
             .subscribe(async (status) => {
                 if (status === 'SUBSCRIBED') {
-                    await channel.track({ online_at: new Date().toISOString() });
+                    await channel.track({
+                        online_at: new Date().toISOString(),
+                        char: selectedChar
+                    });
                 }
             });
 
         channelRef.current = channel;
 
-        // --- Resize ---
         // --- Resize ---
         const resize = () => {
             const dpr = window.devicePixelRatio || 1;
@@ -107,24 +137,20 @@ export function GameCanvas({ roomId, playerId, onLeave }) {
                 down: k['ArrowDown'] || k['KeyS'] || t.down,
                 left: k['ArrowLeft'] || k['KeyA'] || t.left,
                 right: k['ArrowRight'] || k['KeyD'] || t.right,
-                fire: k['Space'] || k['KeyF'] || t.fire,
+                fire: k['KeyF'] || t.fire,
                 dash: k['ShiftRight'] || k['ShiftLeft'] || k['KeyK'] || t.dash,
                 ult: k['KeyV'] || k['KeyO'] || t.ult,
-                jump: k['Space'] || k['KeyJ'] || t.jump // Jump mapped to Space, J, or touch
+                jump: k['Space'] || k['KeyJ'] || t.jump
             };
-
-            // Note: If Fire and Jump are both on Space, Space will trigger both.
-            // Let's refine: Fire on F, Jump on Space.
-            if (k['Space']) myInput.fire = false; // Prefer Jump for Space if conflict?
-            // Actually, let's keep Fire on F only for keyboard to avoid confusion.
-            myInput.fire = k['KeyF'] || t.fire;
-            // Stick to Space for Jump.
 
             if (isHost.current) {
                 // Host Logic
+                const currentRemote = remoteInputs.current || {};
                 const inputs = {
-                    p1: myRole.current === 1 ? myInput : (remoteInputs.current || {}),
-                    p2: myRole.current === 2 ? myInput : (remoteInputs.current || {})
+                    p1: myRole.current === 1 ? myInput : (currentRemote.p1 || {}),
+                    p2: myRole.current === 2 ? myInput : (currentRemote.p2 || {}),
+                    p3: myRole.current === 3 ? myInput : (currentRemote.p3 || {}),
+                    p4: myRole.current === 4 ? myInput : (currentRemote.p4 || {})
                 };
 
                 engineRef.current.update(dt, inputs);
@@ -136,12 +162,14 @@ export function GameCanvas({ roomId, playerId, onLeave }) {
                     payload: engineRef.current.getState()
                 });
             } else {
-                // Client Logic
-                channel.send({
-                    type: 'broadcast',
-                    event: 'input',
-                    payload: myInput
-                });
+                // Client Logic w/ Role
+                if (myRole.current !== -1) {
+                    channel.send({
+                        type: 'broadcast',
+                        event: 'input',
+                        payload: { role: myRole.current, input: myInput }
+                    });
+                }
 
                 if (lastState.current) {
                     engineRef.current.setState(lastState.current);
@@ -174,14 +202,24 @@ export function GameCanvas({ roomId, playerId, onLeave }) {
             justifyContent: 'center', alignItems: 'center',
             overflow: 'hidden', position: 'relative'
         }}>
-            <div style={{ color: 'white', marginBottom: '10px', fontFamily: 'monospace', position: 'absolute', top: 10, zIndex: 20 }}>
-                ROOM: {roomId} | {status}
-                <button onClick={onLeave} style={{ marginLeft: '20px' }}>LEAVE</button>
+            <canvas
+                ref={canvasRef}
+                style={{ display: 'block', touchAction: 'none', position: 'absolute', top: 0, left: 0 }}
+            />
+
+            {/* HUD / Status Overlay */}
+            <div style={{ position: 'absolute', top: 20, left: 20, color: 'white', fontFamily: 'Arial', pointerEvents: 'none', zIndex: 10 }}>
+                <h2 style={{ margin: 0, textShadow: '2px 2px 0 #000' }}>ROOM: {roomId}</h2>
+                <div style={{ fontSize: '1.2rem', color: isHost.current ? '#00FF00' : '#00FFFF' }}>{status}</div>
             </div>
 
-            <TouchControls onInput={handleTouchInput} />
+            {/* Chat Overlay (Bottom Left) */}
+            <Chat roomId={roomId} style={{
+                position: 'absolute', bottom: '100px', left: '20px', width: '300px', height: '200px',
+                zIndex: 30
+            }} />
 
-            <canvas ref={canvasRef} style={{ background: '#333', boxShadow: '0 0 50px rgba(0,0,0,0.5)' }} />
+            <TouchControls onInput={handleTouchInput} />
         </div>
     );
 }
