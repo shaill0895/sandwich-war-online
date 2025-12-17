@@ -8,6 +8,14 @@ export class GameEngine {
         loadGameAssets();
         this.p1 = new Player(1, "AUSTIN", COLORS.blue, 100, true);
         this.p2 = new Player(2, "BRADY", COLORS.red, CONFIG.arenaWidth - 150, false);
+        this.p3 = new Player(3, "FRIDGE", COLORS.green, 100, true); // Bottom Left?
+        this.p4 = new Player(4, "TOASTER", COLORS.yellow, CONFIG.arenaWidth - 150, false);
+
+        // Init inactive players (will be activated by lobby)
+        this.p3.active = false;
+        this.p4.active = false;
+        this.p1.active = true;
+        this.p2.active = true;
 
         this.projectiles = [];
         this.particles = [];
@@ -38,6 +46,32 @@ export class GameEngine {
         this.foodRainTimer = 0;
 
         this.initLevel();
+    }
+
+    updateRoster(chars) {
+        // chars = { p1: 'austin', p2: 'toaster' ... }
+        if (chars.p1) this.setupPlayer(this.p1, chars.p1);
+        if (chars.p2) this.setupPlayer(this.p2, chars.p2);
+        if (chars.p3) this.setupPlayer(this.p3, chars.p3);
+        if (chars.p4) this.setupPlayer(this.p4, chars.p4);
+
+        // Active flags
+        this.p3.active = !!chars.p3;
+        this.p4.active = !!chars.p4;
+    }
+
+    setupPlayer(player, charId) {
+        const data = CHARACTERS.find(c => c.id === charId) || CHARACTERS[0];
+        player.charType = charId;
+        player.color = data.color;
+        // Reset stats if needed (hp, speed etc should be dynamic from data)
+        // For now relying on hardcoded checks inside update/draw or we can set them here
+        player.maxHp = data.hp;
+        player.hp = player.maxHp;
+        player.damage = data.dmg;
+        // Speed is handled in Player class but we can override or set properties
+        player.baseSpeed = CONFIG.playerSpeed * data.speed;
+        player.maxUlt = 100;
     }
 
     initLevel() {
@@ -91,24 +125,58 @@ export class GameEngine {
     spawnProjectile(owner) {
         if (owner.cooldown > 0) return;
 
-        const isP1 = owner === this.p1;
-        const p = {
-            x: isP1 ? owner.x + owner.width : owner.x - 25,
-            y: owner.y + owner.height / 2 - 10 - owner.z, // Spawn at height
-            z: owner.z, // Projectile height
-            width: isP1 ? 40 : 25,
-            height: isP1 ? 20 : 25,
-            vx: isP1 ? CONFIG.projectileSpeed : -CONFIG.projectileSpeed,
-            vy: 0,
+        const dir = owner.isLeft ? 1 : -1;
+
+        let p = {
+            x: owner.isLeft ? owner.x + owner.width : owner.x - 30,
+            y: owner.y + owner.height / 3 - owner.z,
+            z: owner.z,
+            width: 30, height: 30,
+            vx: 600 * dir, vy: 0,
             owner: owner,
-            type: isP1 ? 'sub' : 'chip',
-            damage: owner.damage,
-            penetrates: false,
-            life: 2.0
+            life: 2.0,
+            damage: 15,
+            type: 'default',
+            penetrates: false
         };
 
-        if (owner.rapidFireTimer > 0) owner.cooldown = CONFIG.fireRate / 2;
-        else owner.cooldown = CONFIG.fireRate;
+        // Character Specifics
+        if (owner.charType === 'austin') {
+            p.type = 'baguette'; p.width = 40; p.height = 15;
+            p.damage = 20; p.life = 1.5;
+            owner.cooldown = 0.4;
+        } else if (owner.charType === 'brady') {
+            p.type = 'feather'; p.width = 20; p.height = 20;
+            p.vx = 900 * dir; p.damage = 12;
+            owner.cooldown = 0.25;
+        } else if (owner.charType === 'pigeon') {
+            p.type = 'poop'; p.width = 15; p.height = 15;
+            p.vy = 200; p.vx = 500 * dir; // Arc
+            p.damage = 10; owner.cooldown = 0.3;
+        } else if (owner.charType === 'chef') {
+            p.type = 'ladle'; p.width = 30; p.height = 30;
+            p.vx = 450 * dir; p.damage = 30;
+            owner.cooldown = 0.8;
+        } else if (owner.charType === 'fridge') {
+            p.type = 'ice'; p.vx = 450 * dir; p.damage = 25;
+            owner.cooldown = 0.9;
+        } else if (owner.charType === 'toaster') {
+            p.type = 'toast'; p.vx = 1000 * dir; p.damage = 35;
+            owner.cooldown = 1.1;
+        } else if (owner.charType === 'mecha') {
+            p.type = 'rocket'; p.vx = 800 * dir; p.damage = 40;
+            p.penetrates = true;
+            owner.cooldown = 1.5;
+        } else if (owner.charType === 'crust') {
+            p.type = 'pepperoni'; p.vx = 500 * dir; p.damage = 18;
+            owner.cooldown = 0.35;
+        } else if (owner.charType === 'galactic') {
+            p.type = 'star'; p.vx = 700 * dir; p.damage = 22;
+            owner.cooldown = 0.5;
+            p.vy = (Math.random() - 0.5) * 100; // Wobbly
+        }
+
+        if (owner.rapidFireTimer > 0) owner.cooldown = 0.1;
 
         this.projectiles.push(p);
     }
@@ -119,47 +187,66 @@ export class GameEngine {
         this.spawnText(owner.x, owner.y - owner.z - 80, "ULTIMATE!", "#FF00FF", 60);
         this.shake(20);
 
-        // ... (Ultimate logic similar to before, slightly adjusted for Z if needed, but keeping 2D logic for simplicity of hitboxes)
-        if (owner.charType === 'chef') { // GARGANTUAN
-            const p = {
-                x: owner.x + owner.width,
-                y: owner.y + owner.height / 2 - 50,
-                width: 180, height: 100,
-                vx: 1500, vy: 0,
-                owner: owner,
-                type: 'gargantuan',
-                damage: 80,
-                penetrates: true,
-                life: 3.0
-            };
-            this.projectiles.push(p);
-        } else if (owner.charType === 'pigeon') { // FLOCK
+        if (owner.charType === 'austin') {
+            // BAGUETTE BARRAGE
             for (let i = 0; i < 5; i++) {
                 setTimeout(() => {
                     this.projectiles.push({
-                        x: owner.x + owner.width, y: owner.y + Math.random() * owner.height,
-                        width: 30, height: 30,
-                        vx: 1200, vy: (Math.random() - 0.5) * 400,
-                        owner: owner, type: 'bird', damage: 20, penetrates: false, life: 2.0
+                        x: owner.x, y: owner.y - owner.z, width: 40, height: 15,
+                        vx: (owner.isLeft ? 1 : -1) * 800, vy: (Math.random() - 0.5) * 200,
+                        owner: owner, type: 'baguette', damage: 25, life: 2.0
                     });
                 }, i * 100);
             }
-        } else if (owner.charType === 'fridge') { // FREEZE
-            this.activeEvent = 'SLOW';
-            this.eventTimer = 3.0;
-            this.spawnText(this.camera.x + window.innerWidth / 2, this.camera.y + window.innerHeight / 2, "FREEZE!", "#00FFFF", 80);
-        } else if (owner.charType === 'toaster') { // TOAST POP
-            this.shake(40);
-            this.createExplosion(owner.x + owner.width / 2, owner.y + owner.height / 2, '#FFA500');
-            for (let i = 0; i < 8; i++) {
+        } else if (owner.charType === 'brady') {
+            // FEATHER STORM (360 burst)
+            for (let i = 0; i < 12; i++) {
+                const angle = (i / 12) * Math.PI * 2;
                 this.projectiles.push({
-                    x: owner.x + owner.width / 2, y: owner.y + owner.height / 2,
-                    width: 40, height: 40,
-                    vx: (Math.random() - 0.5) * 1500, vy: (Math.random() - 0.5) * 1500,
-                    owner: owner, type: 'toast', damage: 45, penetrates: false, life: 1.0
+                    x: owner.x, y: owner.y - owner.z, width: 20, height: 20,
+                    vx: Math.cos(angle) * 600, vy: Math.sin(angle) * 600,
+                    owner: owner, type: 'feather', damage: 15, life: 1.5
                 });
             }
+        } else if (owner.charType === 'pigeon') {
+            // DIVE BOMB (Launch up then slam)
+            owner.vz = 1500; // Sky high
+            setTimeout(() => {
+                owner.vz = -2000; // Slam down
+                // Damage handled in move/collision logic technically, but let's add an explosion on landing?
+                // For now, spawn projectiles down
+                this.projectiles.push({
+                    x: owner.x, y: owner.y, z: 600, width: 100, height: 100,
+                    vx: 0, vy: 2000, owner: owner, type: 'body_slam', damage: 60, life: 1.0
+                });
+            }, 500);
+        } else if (owner.charType === 'chef') {
+            // SOUP SPLASH (Pool)
+            this.obstacles.push(new Obstacle(owner.x + (owner.isLeft ? 100 : -100), owner.y, 150, 150, 'puddle')); // Sticky puddle?
+            this.createExplosion(owner.x, owner.y, '#00FF00');
+        } else if (owner.charType === 'fridge') {
+            // DEEP FREEZE
+            this.activeEvent = 'SLOW'; // Global slow
+            this.eventTimer = 4.0;
+        } else if (owner.charType === 'toaster') {
+            // TOAST POP (Explosion)
+            this.createExplosion(owner.x, owner.y, '#FFA500');
+            for (let i = 0; i < 8; i++) {
+                this.projectiles.push({
+                    x: owner.x, y: owner.y - owner.z, width: 30, height: 30,
+                    vx: (Math.random() - 0.5) * 1200, vy: (Math.random() - 0.5) * 1200,
+                    owner: owner, type: 'toast', damage: 50, life: 1.0
+                });
+            }
+        } else if (owner.charType === 'mecha') {
+            // ROCKET FIST
+            this.projectiles.push({
+                x: owner.x, y: owner.y - owner.z, width: 100, height: 60,
+                vx: (owner.isLeft ? 1 : -1) * 1200, vy: 0,
+                owner: owner, type: 'rocket', damage: 90, penetrates: true, life: 3.0
+            });
         }
+        // Add others if needed
     }
 
     update(dt, inputs) {
@@ -170,11 +257,21 @@ export class GameEngine {
         if (this.shakeIntensity < 0.5) this.shakeIntensity = 0;
 
         // Camera Update (Dynamic Zoom & Fit)
-        const midX = (this.p1.x + this.p2.x + this.p1.width / 2 + this.p2.width / 2) / 2;
-        const midY = (this.p1.y + this.p2.y + this.p1.height / 2 + this.p2.height / 2) / 2;
+        const activePlayers = [this.p1, this.p2, this.p3, this.p4].filter(p => p.active);
+        let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
 
-        const distX = Math.abs(this.p1.x - this.p2.x) + 400; // +Padding
-        const distY = Math.abs(this.p1.y - this.p2.y) + 400;
+        activePlayers.forEach(p => {
+            minX = Math.min(minX, p.x);
+            maxX = Math.max(maxX, p.x + p.width);
+            minY = Math.min(minY, p.y);
+            maxY = Math.max(maxY, p.y + p.height);
+        });
+
+        const midX = (minX + maxX) / 2;
+        const midY = (minY + maxY) / 2;
+
+        const distX = (maxX - minX) + 400; // Padding
+        const distY = (maxY - minY) + 400;
 
         // Calculate Target Zoom
         const zoomX = window.innerWidth / distX;
@@ -230,6 +327,18 @@ export class GameEngine {
         const dy = b.targetY - b.y;
         const dist = Math.sqrt(dx * dx + dy * dy);
 
+        // Bryce Speed (Dynamic based on Total Player Health)
+        const activeChars = [this.p1, this.p2, this.p3, this.p4].filter(p => p.active);
+        const totalMaxHp = activeChars.reduce((sum, p) => sum + p.maxHp, 0);
+        const currentHp = activeChars.reduce((sum, p) => sum + Math.max(0, p.hp), 0);
+
+        let hpRatio = 1.0;
+        if (totalMaxHp > 0) hpRatio = currentHp / totalMaxHp;
+
+        // Speed ranges from 100% (400) to 200% (800) as HP drops
+        const dynSpeed = 400 + (1 - hpRatio) * 400;
+        b.speed = dynSpeed;
+
         if (dist > 10) {
             b.x += (dx / dist) * b.speed * dt;
             b.y += (dy / dist) * b.speed * dt;
@@ -254,48 +363,34 @@ export class GameEngine {
         if (b.msgTimer > 0) b.msgTimer -= dt;
 
         // Inputs & Movement
-        // P1
-        let dx1 = 0, dy1 = 0;
-        if (inputs.p1.up) dy1 = -1;
-        if (inputs.p1.down) dy1 = 1;
-        if (inputs.p1.left) dx1 = -1;
-        if (inputs.p1.right) dx1 = 1;
-        if (inputs.p1.fire) this.spawnProjectile(this.p1);
-        if (inputs.p1.dash && !this.p1.isDashing && this.p1.dashCooldown <= 0) {
-            if (this.p1.stamina > 20) {
-                this.p1.isDashing = true; this.p1.dashTime = 0.2; this.p1.dashCooldown = CONFIG.dashCooldown;
-                this.p1.stamina -= 20;
-                this.spawnText(this.p1.x, this.p1.y, "DASH!", "#FFF", 20);
+        const players = [this.p1, this.p2, this.p3, this.p4].filter(p => p.active);
+
+        players.forEach(p => {
+            const key = `p${p.id}`;
+            const input = inputs[key] || {};
+
+            let dx = 0, dy = 0;
+            if (input.up) dy = -1;
+            if (input.down) dy = 1;
+            if (input.left) dx = -1;
+            if (input.right) dx = 1;
+
+            if (input.fire) this.spawnProjectile(p);
+            if (input.dash && !p.isDashing && p.dashCooldown <= 0) {
+                if (p.stamina > 20) {
+                    p.isDashing = true; p.dashTime = 0.2; p.dashCooldown = CONFIG.dashCooldown;
+                    p.stamina -= 20;
+                    this.spawnText(p.x, p.y, "DASH!", "#FFF", 20);
+                }
             }
-        }
-        if (inputs.p1.ult) this.useUltimate(this.p1);
-        if (inputs.p1.jump === true || inputs.p1.jump === undefined && inputs.p1.up && !dy1) { /* handled via specialized inputs in GameCanvas? No, let's map it */ }
-        // Let's assume 'jump' input is mapped
-        if (inputs.p1.jump) this.p1.jump();
+            if (input.ult) this.useUltimate(p);
+            if (input.jump) p.jump();
 
-        this.p1.move(dx1, dy1, dt, this.obstacles, this.activeEvent);
-
-        // P2
-        let dx2 = 0, dy2 = 0;
-        if (inputs.p2.up) dy2 = -1;
-        if (inputs.p2.down) dy2 = 1;
-        if (inputs.p2.left) dx2 = -1;
-        if (inputs.p2.right) dx2 = 1;
-        if (inputs.p2.fire) this.spawnProjectile(this.p2);
-        if (inputs.p2.dash && !this.p2.isDashing && this.p2.dashCooldown <= 0) {
-            if (this.p2.stamina > 20) {
-                this.p2.isDashing = true; this.p2.dashTime = 0.2; this.p2.dashCooldown = CONFIG.dashCooldown;
-                this.p2.stamina -= 20;
-                this.spawnText(this.p2.x, this.p2.y, "DASH!", "#FFF", 20);
-            }
-        }
-        if (inputs.p2.ult) this.useUltimate(this.p2);
-        if (inputs.p2.jump) this.p2.jump();
-
-        this.p2.move(dx2, dy2, dt, this.obstacles, this.activeEvent);
+            p.move(dx, dy, dt, this.obstacles, this.activeEvent);
+        });
 
         // Cooldowns & Timers
-        [this.p1, this.p2].forEach(p => {
+        players.forEach(p => {
             if (p.cooldown > 0) p.cooldown -= dt;
             if (p.dashCooldown > 0) p.dashCooldown -= dt;
             if (p.isDashing) {
@@ -332,42 +427,39 @@ export class GameEngine {
                 continue;
             }
 
-            // Simple Hit Check (ignoring z for projectile simplicity, or maybe checking z < 50)
-            let target = p.owner === this.p1 ? this.p2 : this.p1;
+            // Hit Check
+            const targets = players.filter(pl => pl !== p.owner && (p.owner.id === 0 || p.owner.id !== pl.id));
 
-            // If owning player id is 0 (Hazard), hurt both
-            if (p.owner.id === 0) {
-                if (checkRectCollide(p, this.p1)) target = this.p1;
-                else if (checkRectCollide(p, this.p2)) target = this.p2;
-                else target = null;
-            }
-
-            if (target && checkRectCollide(p, target)) {
-                // 2.5D Hit Check: Projectile must be within Z range of target
-                const projZ = p.z || 0;
-                if (Math.abs(projZ - target.z) < 60) {
-                    if (!target.isDashing) {
-                        if (target.shield > 0) {
-                            target.shield--;
-                            this.spawnText(target.x, target.y - target.z, "BLOCKED!", "#00FFFF", 30);
-                            this.createExplosion(p.x, p.y, "#00FFFF");
-                        } else {
-                            target.hp -= p.damage;
-                            if (p.owner.gainXp) {
-                                p.owner.gainXp(15, this);
-                                p.owner.addCombo(this);
+            for (let target of targets) {
+                if (checkRectCollide(p, target)) {
+                    // 2.5D Hit Check
+                    const projZ = p.z || 0;
+                    if (Math.abs(projZ - target.z) < 60) {
+                        if (!target.isDashing) {
+                            if (target.shield > 0) {
+                                target.shield--;
+                                this.spawnText(target.x, target.y - target.z, "BLOCKED!", "#00FFFF", 30);
+                                this.createExplosion(p.x, p.y, "#00FFFF");
+                            } else {
+                                target.hp -= p.damage;
+                                if (p.owner.gainXp) {
+                                    p.owner.gainXp(15, this);
+                                    p.owner.addCombo(this);
+                                }
+                                this.spawnText(target.x, target.y - target.z, `-${Math.floor(p.damage)}`, COLORS.dmgText, 35);
+                                this.createExplosion(p.x, p.y, p.type === 'sub' ? COLORS.bread : COLORS.chip);
+                                this.shake(5);
+                                this.checkWin();
                             }
-
-                            this.spawnText(target.x, target.y - target.z, `-${Math.floor(p.damage)}`, COLORS.dmgText, 35);
-                            this.createExplosion(p.x, p.y, p.type === 'sub' ? COLORS.bread : COLORS.chip);
-                            this.shake(5);
-                            this.checkWin();
+                        } else {
+                            this.spawnText(target.x, target.y - 20, "PERFECT!", "#00FF00", 30);
+                            if (target.gainXp) target.gainXp(20, this);
                         }
-                    } else {
-                        this.spawnText(target.x, target.y - 20, "PERFECT!", "#00FF00", 30);
-                        if (target.gainXp) target.gainXp(20, this);
+                        if (!p.penetrates) {
+                            this.projectiles.splice(i, 1);
+                            break; // Handled
+                        }
                     }
-                    if (!p.penetrates) this.projectiles.splice(i, 1);
                 }
             }
         }
@@ -375,8 +467,7 @@ export class GameEngine {
         // Powerups
         for (let i = this.powerups.length - 1; i >= 0; i--) {
             let p = this.powerups[i];
-            [this.p1, this.p2].forEach(player => {
-                // Must be on ground to pick up
+            players.forEach(player => {
                 if (player.z < 20 && checkRectCollide(p, player)) {
                     if (p.type === 'speed') {
                         player.speedBuffTimer = 5.0;
@@ -388,7 +479,7 @@ export class GameEngine {
                         player.rapidFireTimer = 3.0;
                         this.spawnText(player.x, player.y, "RAPID FIRE!", COLORS.rapid, 30);
                     }
-                    this.powerups.splice(i, 1);
+                    if (this.powerups.includes(p)) this.powerups.splice(i, 1);
                 }
             });
         }
@@ -435,8 +526,18 @@ export class GameEngine {
             p2: {
                 x: this.p2.x, y: this.p2.y, z: this.p2.z, hp: this.p2.hp,
                 isDashing: this.p2.isDashing, shield: this.p2.shield,
-                ultCharge: this.p2.ultCharge, stamina: this.p2.stamina
+                ultCharge: this.p2.ultCharge, stamina: this.p2.stamina, active: this.p2.active
             },
+            p3: this.p3.active ? {
+                x: this.p3.x, y: this.p3.y, z: this.p3.z, hp: this.p3.hp,
+                isDashing: this.p3.isDashing, shield: this.p3.shield,
+                ultCharge: this.p3.ultCharge, stamina: this.p3.stamina, active: true
+            } : null,
+            p4: this.p4.active ? {
+                x: this.p4.x, y: this.p4.y, z: this.p4.z, hp: this.p4.hp,
+                isDashing: this.p4.isDashing, shield: this.p4.shield,
+                ultCharge: this.p4.ultCharge, stamina: this.p4.stamina, active: true
+            } : null,
             projectiles: this.projectiles.map(p => ({
                 x: p.x, y: p.y, width: p.width, height: p.height,
                 vx: p.vx, vy: p.vy, type: p.type, ownerId: p.owner.id,
@@ -453,11 +554,16 @@ export class GameEngine {
         if (!data) return;
         Object.assign(this.p1, data.p1);
         Object.assign(this.p2, data.p2);
+        if (data.p3) { this.p3.active = true; Object.assign(this.p3, data.p3); }
+        if (data.p4) { this.p4.active = true; Object.assign(this.p4, data.p4); }
 
-        this.projectiles = data.projectiles.map(p => ({
-            ...p,
-            owner: p.ownerId === 0 ? { id: 0 } : (p.ownerId === 1 ? this.p1 : this.p2)
-        }));
+        this.projectiles = data.projectiles.map(p => {
+            let owner = this.p1;
+            if (p.ownerId === 2) owner = this.p2;
+            if (p.ownerId === 3) owner = this.p3;
+            if (p.ownerId === 4) owner = this.p4;
+            return { ...p, owner };
+        });
 
         this.powerups = data.powerups;
         this.bryce = data.bryce;
@@ -472,14 +578,23 @@ export class GameEngine {
         ctx.scale(this.camera.zoom, this.camera.zoom);
         ctx.translate(-this.camera.x, -this.camera.y);
 
-        ctx.fillStyle = '#222';
-        ctx.fillRect(0, 0, CONFIG.arenaWidth, CONFIG.arenaHeight);
 
-        // Grid lines for 3D feel
-        ctx.strokeStyle = '#333';
-        ctx.lineWidth = 2;
-        for (let i = 0; i < CONFIG.arenaWidth; i += 100) { ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i, CONFIG.arenaHeight); ctx.stroke(); }
-        for (let i = 0; i < CONFIG.arenaHeight; i += 100) { ctx.beginPath(); ctx.moveTo(0, i); ctx.lineTo(CONFIG.arenaWidth, i); ctx.stroke(); }
+
+        // Floor Texture
+        const floorImg = sprites.get('floor');
+        if (floorImg && floorImg.complete) {
+            const ptrn = ctx.createPattern(floorImg, 'repeat');
+            ctx.fillStyle = ptrn;
+            ctx.fillRect(0, 0, CONFIG.arenaWidth, CONFIG.arenaHeight);
+        } else {
+            ctx.fillStyle = '#222';
+            ctx.fillRect(0, 0, CONFIG.arenaWidth, CONFIG.arenaHeight);
+            // Grid lines 
+            ctx.strokeStyle = '#333';
+            ctx.lineWidth = 2;
+            for (let i = 0; i < CONFIG.arenaWidth; i += 100) { ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i, CONFIG.arenaHeight); ctx.stroke(); }
+            for (let i = 0; i < CONFIG.arenaHeight; i += 100) { ctx.beginPath(); ctx.moveTo(0, i); ctx.lineTo(CONFIG.arenaWidth, i); ctx.stroke(); }
+        }
 
         // Shake
         if (this.shakeIntensity > 0) {
@@ -523,7 +638,7 @@ export class GameEngine {
             ctx.fillRect(p.x, p.y, p.width, p.height);
         });
 
-        [this.p1, this.p2].forEach(p => this.drawPlayer(ctx, p));
+        [this.p1, this.p2, this.p3, this.p4].filter(p => p.active).forEach(p => this.drawPlayer(ctx, p));
         this.drawBryce(ctx);
 
         this.floatingTexts.forEach(t => {

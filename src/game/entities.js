@@ -49,14 +49,27 @@ export class Player extends Entity {
         this.isLeft = isLeft;
         this.baseColor = color;
 
-        // Character Assignment
-        if (name === "AUSTIN") {
-            this.charType = 'chef';
-        } else if (name === "BRADY") {
-            this.charType = 'pigeon';
-        } else {
-            this.charType = 'toaster';
-        }
+        // Character Assignment & Stats
+        const ROSTER = {
+            'AUSTIN': { type: 'austin', hp: 100, speed: 1.0 },
+            'BRADY': { type: 'brady', hp: 90, speed: 1.1 },
+            'PIGEON': { type: 'pigeon', hp: 80, speed: 1.2 },
+            'CHEF': { type: 'chef', hp: 150, speed: 0.8 },
+            'FRIDGE': { type: 'fridge', hp: 200, speed: 0.6 },
+            'TOASTER': { type: 'toaster', hp: 70, speed: 1.3 },
+            'MECHA': { type: 'mecha', hp: 120, speed: 1.0 },
+            'CRUST': { type: 'crust', hp: 180, speed: 0.7 },
+            'GALACTIC': { type: 'galactic', hp: 110, speed: 1.1 }
+        };
+
+        const charData = ROSTER[name] || ROSTER['AUSTIN'];
+        this.charType = charData.type;
+        this.maxHp = charData.hp;
+        this.speedMult = charData.speed;
+
+        // Remove old stats logic below by overwriting in next steps or just letting it be overwritten
+        this.hp = this.maxHp;
+        this.damage = 15;
 
         // Stats based on character
         this.maxHp = 100;
@@ -199,13 +212,8 @@ export class Player extends Entity {
         if (nextY < 0) nextY = 0;
         if (nextY > CONFIG.arenaHeight - this.height) nextY = CONFIG.arenaHeight - this.height;
 
-        if (this.isLeft) {
-            if (nextX < 0) nextX = 0;
-            if (nextX > CONFIG.arenaWidth / 2 - this.width - 5) nextX = CONFIG.arenaWidth / 2 - this.width - 5;
-        } else {
-            if (nextX < CONFIG.arenaWidth / 2 + 5) nextX = CONFIG.arenaWidth / 2 + 5;
-            if (nextX > CONFIG.arenaWidth - this.width) nextX = CONFIG.arenaWidth - this.width;
-        }
+        if (nextX < 0) nextX = 0;
+        if (nextX > CONFIG.arenaWidth - this.width) nextX = CONFIG.arenaWidth - this.width;
 
         // Obstacle Collision
         const isAirborne = this.z > 50; // Jumping over table height
